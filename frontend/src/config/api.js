@@ -9,7 +9,8 @@ const PUERTO_BFF = 8000;
 function obtenerHostDesarrollo() {
   const hostManual = process.env.EXPO_PUBLIC_BFF_HOST;
   if (hostManual && hostManual.trim()) {
-    return hostManual.trim();
+    const hostLimpio = hostManual.trim().replace(/^https?:\/\//, '').replace(/:\d+$/, '');
+    return hostLimpio;
   }
 
   const hostUri =
@@ -33,6 +34,9 @@ function obtenerHostDesarrollo() {
 
 export function obtenerUrlServidor() {
   const host = obtenerHostDesarrollo();
+  if (host.startsWith('http://') || host.startsWith('https://')) {
+    return host;
+  }
   return `http://${host}:${PUERTO_BFF}`;
 }
 
