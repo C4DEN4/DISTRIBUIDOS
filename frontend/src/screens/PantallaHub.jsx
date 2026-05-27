@@ -26,6 +26,7 @@ const PantallaHub = ({ navigation }) => {
     limpiarSesion,
     setWsListo,
     URL_SERVIDOR,
+    establecerUsuario,
   } = useContextoAplicacion();
 
   const historialCargado = useRef(false);
@@ -33,6 +34,8 @@ const PantallaHub = ({ navigation }) => {
   const sincronizarEstadoRef = useRef(null);
   const manejarSesionInvalidaRef = useRef(null);
   const urlServidorRef = useRef(URL_SERVIDOR);
+  const estabaDesconectadoRef = useRef(false);
+  const reconexionEnProgresoRef = useRef(false);
 
   urlServidorRef.current = URL_SERVIDOR;
 
@@ -57,7 +60,7 @@ const PantallaHub = ({ navigation }) => {
       const miembros = await servicioConexion.obtenerMiembrosGrupo(idGrupo);
       actualizarMiembrosGrupo(miembros);
     } catch (error) {
-      console.error('Error al refrescar miembros:', error);
+      // No mostrar el error al usuario
     }
   }, [idGrupo, actualizarMiembrosGrupo]);
 
@@ -66,7 +69,7 @@ const PantallaHub = ({ navigation }) => {
       servicioConexion.desconectarWebSocket(true);
       await servicioAlmacenamientoLocal.limpiarTodo();
       limpiarSesion();
-      Alert.alert('Sesion expirada', mensaje, [
+      Alert.alert('Sesión expirada', mensaje, [
         { text: 'Ingresar de nuevo', onPress: () => navigation.replace('Autenticacion') },
       ]);
     },
@@ -77,12 +80,12 @@ const PantallaHub = ({ navigation }) => {
 
   const manejarCerrarSesion = useCallback(async () => {
     Alert.alert(
-      'Cerrar Sesion',
-      'Estas seguro de que deseas cerrar sesion?',
+      'Cerrar Sesión',
+      '¿Estás seguro de que deseas cerrar sesión?',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Cerrar Sesion',
+          text: 'Cerrar Sesión',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -94,7 +97,6 @@ const PantallaHub = ({ navigation }) => {
               limpiarSesion();
               navigation.replace('Autenticacion');
             } catch (error) {
-              console.error('Error al cerrar sesion:', error);
               limpiarSesion();
               navigation.replace('Autenticacion');
             }
@@ -103,6 +105,45 @@ const PantallaHub = ({ navigation }) => {
       ]
     );
   }, [idSesion, limpiarSesion, navigation]);
+
+  const manejarSalirGrupo = useCallback(async () => {
+    Alert.alert(
+      'Salir del Grupo',
+      '¿Estás seguro de que deseas salir del grupo?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Salir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              servicioConexion.desconectarWebSocket(true);
+              if (idSesion) {
+                await servicioConexion.eliminarSesion(idSesion);
+              }
+              await servicioAlmacenamientoLocal.guardarUsuario({
+                nombre: usuario,
+                idSesion: null,
+                idGrupo: null,
+                nombreGrupo: null,
+              });
+              limpiarSesion();
+              establecerUsuario({
+                nombre: usuario,
+                idSesion: null,
+                idGrupo: null,
+                nombreGrupo: null,
+              });
+              navigation.replace('SeleccionGrupo');
+            } catch (error) {
+              limpiarSesion();
+              navigation.replace('SeleccionGrupo');
+            }
+          },
+        },
+      ]
+    );
+  }, [idSesion, usuario, limpiarSesion, navigation, establecerUsuario]);
 
   const manejarEnviarSenal = useCallback(
     async (idEvento, timestamp) => {
@@ -114,7 +155,7 @@ const PantallaHub = ({ navigation }) => {
         await registrarSenalLocal(usuario, idGrupo, idEvento, timestamp, agregarPeticion);
         Alert.alert(
           'Modo offline',
-          'No hay canal en tiempo real. La senal quedo guardada para sincronizar.'
+          'No hay canal en tiempo real. La señal quedó guardada para sincronizar.'
         );
         return;
       }
@@ -125,18 +166,17 @@ const PantallaHub = ({ navigation }) => {
           await registrarSenalLocal(usuario, idGrupo, idEvento, timestamp, agregarPeticion);
         }
       } catch (error) {
-        console.error('Error al enviar senal:', error);
         sincronizarEstadoRef.current?.();
 
         if (error.message.includes('conectado') || error.message.includes('Timeout')) {
           await encolarSenalOffline(idGrupo, idEvento, timestamp, usuario);
           await registrarSenalLocal(usuario, idGrupo, idEvento, timestamp, agregarPeticion);
           Alert.alert(
-            'Sin conexion',
-            'La senal se guardo y se enviara cuando recuperes la conexion.'
+            'Sin conexión',
+            'La señal se guardó y se enviará cuando recuperes la conexión.'
           );
         } else {
-          Alert.alert('Error', 'No se pudo enviar la senal. Intenta nuevamente.');
+          Alert.alert('Error', 'No se pudo enviar la señal. Por favor intenta nuevamente.');
         }
       }
     },
@@ -154,7 +194,7 @@ const PantallaHub = ({ navigation }) => {
         if (sincronizadas > 0) {
           Alert.alert(
             'Sincronizado',
-            `${sincronizadas} senal(es) pendiente(s) enviada(s) al grupo.`
+            `${sincronizadas} señal(es) pendiente(s) enviada(s) al grupo.`
           );
         }
         if (servicioConexion.estaConectado()) {
@@ -172,10 +212,32 @@ const PantallaHub = ({ navigation }) => {
         sincronizarEstadoRef.current?.();
         Alert.alert(
           'Canal en tiempo real no disponible',
-          `REST OK pero WebSocket no conecta.\n\nBFF: ${urlServidorRef.current}\nWS: ${servicioConexion.obtenerUltimaUrlWs()}\n\nRevisa .env (EXPO_PUBLIC_BFF_HOST), usa "npx expo start --lan" y reinicia Expo Go.`
+          'No se pudo establecer la conexión en tiempo real. Verifica tu conexión a internet y vuelve a intentar.'
         );
       },
       onSesionInvalida: (mensaje) => manejarSesionInvalida(mensaje),
+      onAck: async (datos) => {
+        if (datos.event_id && datos.status === 'success') {
+          try {
+            const url = `${URL_SERVIDOR}/api/v1/groups/${idGrupo}/events/${datos.event_id}`;
+            const respuesta = await fetch(url);
+            if (respuesta.ok) {
+              const evento = await respuesta.json();
+              if (evento.sender_name && evento.message) {
+                const peticion = {
+                  remitente: evento.sender_name,
+                  mensaje: evento.message,
+                  timestamp: evento.timestamp || Date.now(),
+                };
+                agregarPeticion(peticion);
+                servicioAlmacenamientoLocal.agregarPeticionHistorial(peticion, idGrupo);
+              }
+            }
+          } catch (error) {
+            // No mostrar el error al usuario
+          }
+        }
+      },
       onNotificacion: (datos) => {
         if (datos.data) {
           const peticion = {
@@ -188,7 +250,7 @@ const PantallaHub = ({ navigation }) => {
         }
       },
       onError: (datos) => {
-        Alert.alert('Error del servidor', datos.message || 'Ocurrio un error en el servidor');
+        Alert.alert('Error del servidor', datos.message || 'Ocurrió un error en el servidor');
       },
     };
   });
@@ -207,6 +269,7 @@ const PantallaHub = ({ navigation }) => {
       onReconectando: (n) => callbacksRef.current.onReconectando?.(n),
       onReconexionFallida: () => callbacksRef.current.onReconexionFallida?.(),
       onSesionInvalida: (m) => callbacksRef.current.onSesionInvalida?.(m),
+      onAck: (d) => callbacksRef.current.onAck?.(d),
       onNotificacion: (d) => callbacksRef.current.onNotificacion?.(d),
       onError: (d) => callbacksRef.current.onError?.(d),
     });
@@ -249,11 +312,39 @@ const PantallaHub = ({ navigation }) => {
 
     const intervaloEstado = setInterval(() => {
       sincronizarEstadoRef.current?.();
+
+      const estaConectado = servicioConexion.estaConectado();
+
+      // Actualizar miembros inmediatamente cuando se reconecta
+      if (activo && estaConectado && estabaDesconectadoRef.current) {
+        estabaDesconectadoRef.current = false;
+        // Esperar un momento para que el servidor actualice el estado de las conexiones
+        setTimeout(() => {
+          if (activo) {
+            try {
+              manejarRefrescar();
+            } catch (error) {
+              // No mostrar el error al usuario
+            }
+          }
+        }, 1000);
+      }
     }, 3000);
+
+    const intervaloMiembros = setInterval(() => {
+      if (activo && servicioConexion.estaConectado()) {
+        try {
+          manejarRefrescar();
+        } catch (error) {
+          // No mostrar el error al usuario
+        }
+      }
+    }, 20000);
 
     return () => {
       activo = false;
       clearInterval(intervaloEstado);
+      clearInterval(intervaloMiembros);
       servicioConexion.desconectarWebSocket(true);
       setWsListo(false);
     };
@@ -262,10 +353,10 @@ const PantallaHub = ({ navigation }) => {
   return (
     <SafeAreaView style={estilos.contenedorSeguro}>
       <View style={estilos.contenedor}>
-        <BarraUsuario onCerrarSesion={manejarCerrarSesion} />
+        <BarraUsuario />
         <IndicadorConexion />
         <ScrollView style={estilos.contenido} showsVerticalScrollIndicator={false}>
-          <TarjetaGrupo />
+          <TarjetaGrupo onSalirGrupo={manejarSalirGrupo} />
           <HistorialPeticiones onRefrescar={manejarRefrescar} />
         </ScrollView>
         <BotonAccion onEnviarSenal={manejarEnviarSenal} />

@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useContextoAplicacion } from '../context/ContextoAplicacion';
 import { obtenerColorGrupo } from '../utils/validaciones';
 
-const TarjetaGrupo = () => {
+const TarjetaGrupo = ({ onSalirGrupo }) => {
   const { nombreGrupo, idGrupo, miembrosGrupo, totalMiembros, usuario } = useContextoAplicacion();
   const colorGrupo = obtenerColorGrupo(idGrupo || nombreGrupo.toLowerCase().replace(/\s+/g, '-'));
 
@@ -21,12 +21,21 @@ const TarjetaGrupo = () => {
         </Text>
       </View>
 
+      {/* Botón salir del grupo */}
+      <TouchableOpacity
+        style={[estilos.botonSalir, { backgroundColor: '#FF3B30' }]}
+        onPress={onSalirGrupo}
+      >
+        <Ionicons name="exit-outline" size={20} color="#FFFFFF" />
+        <Text style={estilos.textoBotonSalir}>Salir del grupo</Text>
+      </TouchableOpacity>
+
       {/* Lista de miembros */}
       <View style={estilos.contenedorMiembros}>
         <Text style={estilos.tituloMiembros}>Miembros activos:</Text>
-        
+
         {miembrosGrupo.length > 0 ? (
-          <ScrollView 
+          <ScrollView
             style={estilos.listaMiembros}
             showsVerticalScrollIndicator={false}
           >
@@ -144,6 +153,20 @@ const estilos = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
     marginTop: 8,
+  },
+  botonSalir: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    gap: 8,
+  },
+  textoBotonSalir: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

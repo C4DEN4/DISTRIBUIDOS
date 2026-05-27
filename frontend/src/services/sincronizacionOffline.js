@@ -11,12 +11,12 @@ export async function sincronizarSenalesPendientes(usuario, agregarPeticion) {
 
   let sincronizadas = 0;
 
-  for (let indice = 0; indice < pendientes.length; indice++) {
-    const senal = pendientes[indice];
-
+  while (pendientes.length > 0) {
     if (!servicioConexion.estaConectado()) {
       break;
     }
+
+    const senal = pendientes[0];
 
     try {
       const respuesta = await servicioConexion.enviarSenal(senal.idEvento, senal.timestamp);
@@ -30,14 +30,19 @@ export async function sincronizarSenalesPendientes(usuario, agregarPeticion) {
         agregarPeticion(peticion);
         await servicioAlmacenamientoLocal.agregarPeticionHistorial(peticion, senal.idGrupo);
         await servicioAlmacenamientoLocal.eliminarSenalPendiente(0);
+        pendientes.shift();
         sincronizadas += 1;
-        indice -= 1;
+      } else {
+        await servicioAlmacenamientoLocal.eliminarSenalPendiente(0);
+        pendientes.shift();
       }
     } catch (error) {
       console.error('Error al sincronizar señal pendiente:', error);
       if (error.message.includes('conectado')) {
         break;
       }
+      await servicioAlmacenamientoLocal.eliminarSenalPendiente(0);
+      pendientes.shift();
     }
   }
 

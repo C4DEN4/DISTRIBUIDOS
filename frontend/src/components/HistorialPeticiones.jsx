@@ -1,12 +1,11 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useContextoAplicacion } from '../context/ContextoAplicacion';
-import { formatearTimestamp } from '../utils/validaciones';
 
 const HistorialPeticiones = ({ onRefrescar }) => {
   const { historialPeticiones, usuario } = useContextoAplicacion();
-  const [refrescando, setRefrescando] = React.useState(false);
+  const [refrescando, setRefrescando] = useState(false);
 
   const manejarRefrescar = async () => {
     setRefrescando(true);
@@ -16,61 +15,67 @@ const HistorialPeticiones = ({ onRefrescar }) => {
     setRefrescando(false);
   };
 
+  // Agrupar peticiones por remitente
+  const peticionesAgrupadas = useMemo(() => {
+    const agrupadas = {};
+    historialPeticiones.forEach((peticion) => {
+      if (!agrupadas[peticion.remitente]) {
+        agrupadas[peticion.remitente] = {
+          remitente: peticion.remitente,
+          conteo: 0,
+          ultimaPeticion: peticion,
+        };
+      }
+      agrupadas[peticion.remitente].conteo += 1;
+      if (peticion.timestamp > agrupadas[peticion.remitente].ultimaPeticion.timestamp) {
+        agrupadas[peticion.remitente].ultimaPeticion = peticion;
+      }
+    });
+    return Object.values(agrupadas).sort((a, b) => b.ultimaPeticion.timestamp - a.ultimaPeticion.timestamp);
+  }, [historialPeticiones]);
+
   return (
     <View style={estilos.contenedor}>
       <View style={estilos.encabezado}>
         <Text style={estilos.titulo}>Historial del Grupo</Text>
         <Text style={estilos.contador}>
-          {historialPeticiones.length} evento{historialPeticiones.length !== 1 ? 's' : ''}
+          {peticionesAgrupadas.length} miembro{peticionesAgrupadas.length !== 1 ? 's' : ''}
         </Text>
       </View>
 
       <ScrollView
         style={estilos.lista}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refrescando}
-            onRefresh={manejarRefrescar}
-            colors={['#007AFF']}
-          />
-        }
       >
-        {historialPeticiones.length > 0 ? (
-          historialPeticiones.map((peticion, indice) => {
-            const esPropia = peticion.remitente === usuario;
-            
+        {peticionesAgrupadas.length > 0 ? (
+          peticionesAgrupadas.map((grupo) => {
+            const esPropio = grupo.remitente === usuario;
+
             return (
               <View
-                key={`${peticion.timestamp}-${peticion.remitente}-${indice}`}
+                key={grupo.remitente}
                 style={[
                   estilos.item,
-                  esPropia && estilos.itemPropio
+                  esPropio && estilos.itemPropio
                 ]}
               >
-                <View style={estilos.contenedorHora}>
-                  <Text style={estilos.hora}>
-                    {formatearTimestamp(peticion.timestamp)}
-                  </Text>
+                <View style={estilos.contenedorIcono}>
+                  <Ionicons
+                    name={esPropio ? 'checkmark-circle' : 'person-circle-outline'}
+                    size={24}
+                    color={esPropio ? '#34C759' : '#007AFF'}
+                  />
                 </View>
-                
+
                 <View style={estilos.contenedorContenido}>
-                  <View style={estilos.contenedorRemitente}>
-                    <Ionicons
-                      name={esPropia ? 'checkmark-circle' : 'person-circle-outline'}
-                      size={16}
-                      color={esPropia ? '#34C759' : '#007AFF'}
-                    />
-                    <Text style={[
-                      estilos.remitente,
-                      esPropia && estilos.remitentePropio
-                    ]}>
-                      {peticion.remitente}
-                    </Text>
-                  </View>
-                  
-                  <Text style={estilos.mensaje}>
-                    {peticion.mensaje}
+                  <Text style={[
+                    estilos.remitente,
+                    esPropio && estilos.remitentePropio
+                  ]}>
+                    {grupo.remitente}
+                  </Text>
+                  <Text style={estilos.conteo}>
+                    {grupo.conteo} petición{grupo.conteo !== 1 ? 'es' : ''}
                   </Text>
                 </View>
               </View>
@@ -126,7 +131,8 @@ const estilos = StyleSheet.create({
   },
   item: {
     flexDirection: 'row',
-    paddingVertical: 10,
+    alignItems: 'center',
+    paddingVertical: 12,
     paddingHorizontal: 12,
     backgroundColor: '#F2F2F7',
     borderRadius: 8,
@@ -138,34 +144,25 @@ const estilos = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#34C759' + '30',
   },
-  contenedorHora: {
-    minWidth: 60,
-  },
-  hora: {
-    fontSize: 12,
-    color: '#8E8E93',
-    fontWeight: '600',
+  contenedorIcono: {
+    minWidth: 40,
+    alignItems: 'center',
   },
   contenedorContenido: {
     flex: 1,
   },
-  contenedorRemitente: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
-  },
   remitente: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: 'bold',
     color: '#007AFF',
   },
   remitentePropio: {
     color: '#34C759',
   },
-  mensaje: {
+  conteo: {
     fontSize: 14,
-    color: '#000000',
+    color: '#8E8E93',
+    marginTop: 2,
   },
   contenedorVacio: {
     alignItems: 'center',

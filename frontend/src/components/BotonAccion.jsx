@@ -29,7 +29,7 @@ const BotonAccion = ({ onEnviarSenal }) => {
         setDeshabilitado(false);
       }, 1000);
     } catch (error) {
-      console.error('Error al enviar señal:', error);
+      // No mostrar el error al usuario
     } finally {
       setEnviando(false);
     }
@@ -60,7 +60,7 @@ const BotonAccion = ({ onEnviarSenal }) => {
               color={habilitado ? '#FFFFFF' : '#8E8E93'}
             />
             <Text style={[estilos.textoBoton, !habilitado && estilos.textoBotonDeshabilitado]}>
-              {enLinea ? 'Enviar Senal' : 'Encolar Senal (Offline)'}
+              {enLinea ? 'Enviar Señal' : 'Encolar Señal (Offline)'}
             </Text>
           </>
         )}
@@ -70,7 +70,7 @@ const BotonAccion = ({ onEnviarSenal }) => {
         <Text style={estilos.textoAyuda}>
           {estadoConexion === 'reconectando'
             ? 'Reconectando canal en tiempo real...'
-            : 'Modo offline: las senales se encolan y sincronizan al reconectar'}
+            : 'Modo offline: las señales se encolan y sincronizan al reconectar'}
         </Text>
       )}
     </View>

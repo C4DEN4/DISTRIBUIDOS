@@ -1,9 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet } from 'react-native';
 import { useContextoAplicacion } from '../context/ContextoAplicacion';
 
-const BarraUsuario = ({ onCerrarSesion }) => {
+const BarraUsuario = () => {
   const { usuario } = useContextoAplicacion();
 
   return (
@@ -11,13 +10,6 @@ const BarraUsuario = ({ onCerrarSesion }) => {
       <View style={estilos.contenedorUsuario}>
         <Text style={estilos.nombreUsuario}>{usuario}</Text>
       </View>
-      
-      <TouchableOpacity
-        style={estilos.botonCerrarSesion}
-        onPress={onCerrarSesion}
-      >
-        <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
-      </TouchableOpacity>
     </View>
   );
 };
@@ -25,7 +17,7 @@ const BarraUsuario = ({ onCerrarSesion }) => {
 const estilos = StyleSheet.create({
   contenedor: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -41,11 +33,6 @@ const estilos = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#000000',
-  },
-  botonCerrarSesion: {
-    padding: 8,
-    backgroundColor: '#FF3B30' + '10',
-    borderRadius: 8,
   },
 });
 

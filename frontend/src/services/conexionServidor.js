@@ -174,7 +174,7 @@ class ServicioConexion {
     ) {
       this.callbacks = callbacks;
       this._sesionActiva.callbacks = callbacks;
-      return;
+      return Promise.resolve();
     }
 
     this.desconectarWebSocket(true);
@@ -182,11 +182,15 @@ class ServicioConexion {
     this._sesionActiva = { idSesion, idGrupo, nombre, callbacks };
     this._desconexionIntencional = false;
     this.intentosReconexion = 0;
-    this._abrirWebSocket(idSesion, idGrupo, nombre, callbacks);
+
+    return new Promise((resolve) => {
+      this._abrirWebSocket(idSesion, idGrupo, nombre, callbacks, resolve);
+    });
   }
 
-  _abrirWebSocket(idSesion, idGrupo, nombre, callbacks) {
+  _abrirWebSocket(idSesion, idGrupo, nombre, callbacks, resolve) {
     if (this._conexionEnProgreso) {
+      if (resolve) resolve();
       return;
     }
 
@@ -217,7 +221,7 @@ class ServicioConexion {
         const datos = JSON.parse(evento.data);
         this._procesarMensajeEntrante(datos);
       } catch (error) {
-        console.error('Mensaje WebSocket invalido:', error);
+        // No mostrar el error al usuario
       }
     };
 
@@ -225,6 +229,7 @@ class ServicioConexion {
       this._conexionEnProgreso = false;
       this.intentosReconexion = 0;
       this._reconexionProgramada = false;
+      if (resolve) resolve();
       if (this.callbacks.onConectado) {
         this.callbacks.onConectado();
       }
@@ -281,7 +286,7 @@ class ServicioConexion {
           console.error('Error al enviar ping:', error);
         }
       }
-    }, 20000);
+    }, 10000);
   }
 
   detenerPingPong() {

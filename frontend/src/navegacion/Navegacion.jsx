@@ -3,6 +3,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import PantallaAutenticacion from '../screens/PantallaAutenticacion';
+import PantallaSeleccionGrupo from '../screens/PantallaSeleccionGrupo';
 import PantallaHub from '../screens/PantallaHub';
 import { useContextoAplicacion } from '../context/ContextoAplicacion';
 import { servicioAlmacenamientoLocal } from '../services/almacenamientoLocal';
@@ -21,25 +22,30 @@ const Navegacion = () => {
         servicioConexion.establecerURL(URL_SERVIDOR);
         const datosUsuario = await servicioAlmacenamientoLocal.obtenerUsuario();
 
-        if (datosUsuario?.idSesion && datosUsuario?.nombre && datosUsuario?.idGrupo) {
-          try {
-            await servicioConexion.verificarSalud();
+        if (datosUsuario?.nombre) {
+          if (datosUsuario?.idSesion && datosUsuario?.idGrupo) {
+            try {
+              await servicioConexion.verificarSalud();
+              establecerUsuario(datosUsuario);
+              setRutaInicial('Hub');
+            } catch {
+              establecerUsuario(datosUsuario);
+              setRutaInicial('Hub');
+            }
+          } else {
             establecerUsuario(datosUsuario);
-            setRutaInicial('Hub');
-          } catch {
-            establecerUsuario(datosUsuario);
-            setRutaInicial('Hub');
+            setRutaInicial('SeleccionGrupo');
           }
         }
       } catch (error) {
-        console.error('Error al restaurar sesión:', error);
+        // No mostrar el error al usuario
       } finally {
         setListo(true);
       }
     };
 
     restaurarSesion();
-  }, [URL_SERVIDOR, establecerUsuario]);
+  }, [URL_SERVIDOR]);
 
   if (!listo) {
     return (
@@ -62,6 +68,11 @@ const Navegacion = () => {
           name="Autenticacion"
           component={PantallaAutenticacion}
           options={{ title: 'Autenticación' }}
+        />
+        <Stack.Screen
+          name="SeleccionGrupo"
+          component={PantallaSeleccionGrupo}
+          options={{ title: 'Seleccionar Grupo' }}
         />
         <Stack.Screen
           name="Hub"

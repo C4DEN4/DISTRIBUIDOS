@@ -68,12 +68,12 @@ export const ProveedorContextoAplicacion = ({ children }) => {
       if (existe) {
         return prev;
       }
-      return [peticion, ...prev].slice(0, 100);
+      return [peticion, ...prev].slice(0, 1000);
     });
   }, []);
 
   const establecerHistorial = useCallback((historial) => {
-    setHistorialPeticiones(historial.slice(0, 100));
+    setHistorialPeticiones(historial.slice(0, 1000));
   }, []);
 
   const establecerError = useCallback((mensajeError) => {
