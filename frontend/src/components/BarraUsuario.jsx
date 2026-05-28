@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useContextoAplicacion } from '../context/ContextoAplicacion';
 
-const BarraUsuario = ({ onCerrarSesion }) => {
+const BarraUsuario = ({ onCerrarSesion, onCambiarGrupo }) => {
   const { usuario } = useContextoAplicacion();
 
   return (
@@ -11,13 +11,24 @@ const BarraUsuario = ({ onCerrarSesion }) => {
       <View style={estilos.contenedorUsuario}>
         <Text style={estilos.nombreUsuario}>{usuario}</Text>
       </View>
-      
-      <TouchableOpacity
-        style={estilos.botonCerrarSesion}
-        onPress={onCerrarSesion}
-      >
-        <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
-      </TouchableOpacity>
+
+      <View style={estilos.acciones}>
+        {onCambiarGrupo && (
+          <TouchableOpacity
+            style={estilos.botonCambiarGrupo}
+            onPress={onCambiarGrupo}
+          >
+            <Ionicons name="swap-horizontal-outline" size={24} color="#007AFF" />
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          style={estilos.botonCerrarSesion}
+          onPress={onCerrarSesion}
+        >
+          <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -41,6 +52,16 @@ const estilos = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#000000',
+  },
+  acciones: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  botonCambiarGrupo: {
+    padding: 8,
+    backgroundColor: '#007AFF' + '10',
+    borderRadius: 8,
   },
   botonCerrarSesion: {
     padding: 8,

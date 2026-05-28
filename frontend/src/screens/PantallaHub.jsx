@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { View, StyleSheet, Alert, ScrollView, SafeAreaView } from 'react-native';
 import { useContextoAplicacion } from '../context/ContextoAplicacion';
 import { servicioConexion } from '../services/conexionServidor';
@@ -13,6 +13,8 @@ import IndicadorConexion from '../components/IndicadorConexion';
 import TarjetaGrupo from '../components/TarjetaGrupo';
 import HistorialPeticiones from '../components/HistorialPeticiones';
 import BotonAccion from '../components/BotonAccion';
+import ModalCambiarGrupo from '../components/ModalCambiarGrupo';
+import AvisoToast from '../components/AvisoToast';
 
 const PantallaHub = ({ navigation }) => {
   const {
@@ -23,18 +25,29 @@ const PantallaHub = ({ navigation }) => {
     actualizarMiembrosGrupo,
     agregarPeticion,
     establecerHistorial,
+    establecerUsuario,
     limpiarSesion,
     setWsListo,
     URL_SERVIDOR,
   } = useContextoAplicacion();
+
+  const [modalGrupoVisible, setModalGrupoVisible] = useState(false);
+  const [cambiandoGrupo, setCambiandoGrupo] = useState(false);
+  const [aviso, setAviso] = useState(null);
 
   const historialCargado = useRef(false);
   const callbacksRef = useRef({});
   const sincronizarEstadoRef = useRef(null);
   const manejarSesionInvalidaRef = useRef(null);
   const urlServidorRef = useRef(URL_SERVIDOR);
+  const miembrosPreviosRef = useRef([]);
+  const presenciaInicialRef = useRef(true);
 
   urlServidorRef.current = URL_SERVIDOR;
+
+  const mostrarAviso = useCallback((mensaje, tipo) => {
+    setAviso({ id: `${Date.now()}-${Math.random()}`, mensaje, tipo });
+  }, []);
 
   const sincronizarEstadoVisual = useCallback(() => {
     const estadoReal = servicioConexion.obtenerEstadoReal();
@@ -103,6 +116,68 @@ const PantallaHub = ({ navigation }) => {
       ]
     );
   }, [idSesion, limpiarSesion, navigation]);
+
+  const manejarCambiarGrupo = useCallback(
+    async (nuevoGrupo) => {
+      if (!nuevoGrupo || nuevoGrupo.id === idGrupo) {
+        setModalGrupoVisible(false);
+        return;
+      }
+
+      setCambiandoGrupo(true);
+      const idSesionAnterior = idSesion;
+
+      try {
+        // Con unicidad GLOBAL de nombre, primero hay que LIBERAR el nombre (cerrar la sesion
+        // anterior) y luego recrearlo en el nuevo grupo; si no, el servidor lo veria duplicado.
+        servicioConexion.desconectarWebSocket(true);
+        if (idSesionAnterior) {
+          await servicioConexion.eliminarSesion(idSesionAnterior);
+        }
+
+        const nuevaSesion = await servicioConexion.crearSesion(usuario, nuevoGrupo.id);
+
+        const datos = {
+          nombre: usuario,
+          idSesion: nuevaSesion.session_id,
+          idGrupo: nuevoGrupo.id,
+          nombreGrupo: nuevoGrupo.nombre,
+        };
+
+        await servicioAlmacenamientoLocal.guardarUsuario(datos);
+        await servicioAlmacenamientoLocal.guardarSesion(nuevaSesion);
+
+        // Limpiar la vista del grupo anterior y recargar el historial del nuevo.
+        historialCargado.current = false;
+        actualizarMiembrosGrupo([]);
+        establecerHistorial([]);
+
+        // Actualizar el contexto: dispara el efecto que reconecta el WebSocket al nuevo grupo.
+        establecerUsuario(datos);
+
+        setModalGrupoVisible(false);
+      } catch (error) {
+        setModalGrupoVisible(false);
+        Alert.alert(
+          'No se pudo cambiar de grupo',
+          'Ocurrio un problema al cambiarte. Vuelve a ingresar con tu nombre.',
+          [
+            {
+              text: 'OK',
+              onPress: async () => {
+                await servicioAlmacenamientoLocal.limpiarTodo();
+                limpiarSesion();
+                navigation.replace('Autenticacion');
+              },
+            },
+          ]
+        );
+      } finally {
+        setCambiandoGrupo(false);
+      }
+    },
+    [idGrupo, idSesion, usuario, establecerUsuario, actualizarMiembrosGrupo, establecerHistorial, limpiarSesion, navigation]
+  );
 
   const manejarEnviarSenal = useCallback(
     async (idEvento, timestamp) => {
@@ -176,6 +251,28 @@ const PantallaHub = ({ navigation }) => {
         );
       },
       onSesionInvalida: (mensaje) => manejarSesionInvalida(mensaje),
+      onPresencia: (datos) => {
+        if (!datos.data || !Array.isArray(datos.data.names)) {
+          return;
+        }
+        const nuevos = datos.data.names;
+        actualizarMiembrosGrupo(nuevos);
+
+        // El primer 'presence' tras (re)conectar es la foto inicial: fija la base sin avisar.
+        if (presenciaInicialRef.current) {
+          presenciaInicialRef.current = false;
+          miembrosPreviosRef.current = nuevos;
+          return;
+        }
+
+        const previos = miembrosPreviosRef.current;
+        const entraron = nuevos.filter((n) => !previos.includes(n) && n !== usuario);
+        const salieron = previos.filter((n) => !nuevos.includes(n) && n !== usuario);
+        miembrosPreviosRef.current = nuevos;
+
+        entraron.forEach((n) => mostrarAviso(`${n} se unió al grupo`, 'entrada'));
+        salieron.forEach((n) => mostrarAviso(`${n} salió del grupo`, 'salida'));
+      },
       onNotificacion: (datos) => {
         if (datos.data) {
           const peticion = {
@@ -200,6 +297,10 @@ const PantallaHub = ({ navigation }) => {
 
     let activo = true;
 
+    // Nueva conexión/grupo: la próxima lista de miembros es la base (no dispara avisos).
+    presenciaInicialRef.current = true;
+    miembrosPreviosRef.current = [];
+
     const enlazarCallbacks = () => ({
       onConectado: () => callbacksRef.current.onConectado?.(),
       onDesconectado: (razon) => callbacksRef.current.onDesconectado?.(razon),
@@ -207,6 +308,7 @@ const PantallaHub = ({ navigation }) => {
       onReconectando: (n) => callbacksRef.current.onReconectando?.(n),
       onReconexionFallida: () => callbacksRef.current.onReconexionFallida?.(),
       onSesionInvalida: (m) => callbacksRef.current.onSesionInvalida?.(m),
+      onPresencia: (d) => callbacksRef.current.onPresencia?.(d),
       onNotificacion: (d) => callbacksRef.current.onNotificacion?.(d),
       onError: (d) => callbacksRef.current.onError?.(d),
     });
@@ -261,8 +363,12 @@ const PantallaHub = ({ navigation }) => {
 
   return (
     <SafeAreaView style={estilos.contenedorSeguro}>
+      <AvisoToast aviso={aviso} onOcultar={() => setAviso(null)} />
       <View style={estilos.contenedor}>
-        <BarraUsuario onCerrarSesion={manejarCerrarSesion} />
+        <BarraUsuario
+          onCerrarSesion={manejarCerrarSesion}
+          onCambiarGrupo={() => setModalGrupoVisible(true)}
+        />
         <IndicadorConexion />
         <ScrollView style={estilos.contenido} showsVerticalScrollIndicator={false}>
           <TarjetaGrupo />
@@ -270,6 +376,14 @@ const PantallaHub = ({ navigation }) => {
         </ScrollView>
         <BotonAccion onEnviarSenal={manejarEnviarSenal} />
       </View>
+
+      <ModalCambiarGrupo
+        visible={modalGrupoVisible}
+        grupoActual={idGrupo}
+        cambiando={cambiandoGrupo}
+        onSeleccionar={manejarCambiarGrupo}
+        onCerrar={() => setModalGrupoVisible(false)}
+      />
     </SafeAreaView>
   );
 };

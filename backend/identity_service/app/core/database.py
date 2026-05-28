@@ -20,44 +20,49 @@ class BaseDatos:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     session_id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
+                    name TEXT NOT NULL COLLATE NOCASE,
                     group_id TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     expires_at TEXT NOT NULL,
-                    UNIQUE(name, group_id)
+                    UNIQUE(name)
                 )
             """)
             self._migrar_esquema_si_necesario(conn)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_name_group ON sessions(name, group_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_group_id ON sessions(group_id)")
             conn.commit()
             registrador.info(f"Base de datos de Identidad inicializada: {self.ruta_db}")
 
     def _migrar_esquema_si_necesario(self, conn):
-        """Migra esquema antiguo UNIQUE(name) → UNIQUE(name, group_id)."""
+        """Migra a unicidad GLOBAL de nombre, insensible a mayúsculas (NOCASE)."""
         cursor = conn.cursor()
         cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='sessions'")
         fila = cursor.fetchone()
         if not fila or not fila[0]:
             return
-        if "UNIQUE(name, group_id)" in fila[0]:
-            return
+        if "COLLATE NOCASE" in fila[0]:
+            return  # ya está en la versión nueva
 
-        registrador.info("Migrando tabla sessions a unicidad por (name, group_id)")
+        registrador.info("Migrando tabla sessions a unicidad GLOBAL de nombre (NOCASE)")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS sessions_new (
                 session_id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
+                name TEXT NOT NULL COLLATE NOCASE,
                 group_id TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 expires_at TEXT NOT NULL,
-                UNIQUE(name, group_id)
+                UNIQUE(name)
             )
         """)
+        # Insertar deduplicando por nombre normalizado (sin espacios extremos, sin distinción
+        # de mayúsculas), conservando la sesión más antigua de cada nombre.
         cursor.execute("""
             INSERT OR IGNORE INTO sessions_new (session_id, name, group_id, created_at, expires_at)
-            SELECT session_id, name, group_id, created_at, expires_at FROM sessions
+            SELECT session_id, TRIM(name), group_id, created_at, expires_at
+            FROM sessions
+            WHERE rowid IN (
+                SELECT MIN(rowid) FROM sessions GROUP BY LOWER(TRIM(name))
+            )
         """)
         cursor.execute("DROP TABLE sessions")
         cursor.execute("ALTER TABLE sessions_new RENAME TO sessions")
@@ -100,15 +105,16 @@ class BaseDatos:
                 return dict(fila)
             return None
     
-    def obtener_sesion_por_nombre_y_grupo(self, nombre: str, id_grupo: str) -> Optional[Dict]:
+    def obtener_sesion_por_nombre(self, nombre: str) -> Optional[Dict]:
+        """Busca una sesión activa por nombre de forma GLOBAL e insensible a mayúsculas."""
         ahora = datetime.utcnow().isoformat()
         with self._obtener_conexion() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT session_id, name, group_id, created_at, expires_at
                 FROM sessions
-                WHERE name = ? AND group_id = ? AND expires_at > ?
-            """, (nombre, id_grupo, ahora))
+                WHERE name = ? COLLATE NOCASE AND expires_at > ?
+            """, (nombre, ahora))
             fila = cursor.fetchone()
             if fila:
                 return dict(fila)

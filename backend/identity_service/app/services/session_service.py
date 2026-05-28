@@ -11,13 +11,21 @@ class ServicioSesion:
         self._bloqueos: Dict[str, asyncio.Lock] = {}
         self._bloqueo_global = asyncio.Lock()
 
-    def _clave_bloqueo(self, nombre: str, id_grupo: str) -> str:
-        return f"{nombre}:{id_grupo}"
+    def _clave_bloqueo(self, nombre: str) -> str:
+        # Unicidad GLOBAL: el candado es por nombre normalizado (independiente del grupo).
+        return nombre.lower()
+
+    @staticmethod
+    def _normalizar_nombre(nombre: str) -> str:
+        # Quita espacios al inicio/fin y colapsa espacios internos repetidos.
+        return " ".join(nombre.split())
 
     async def crear_sesion(self, datos_sesion: CrearSesion) -> RespuestaSesion:
-        nombre = datos_sesion.nombre
+        nombre = self._normalizar_nombre(datos_sesion.nombre)
         id_grupo = datos_sesion.id_grupo
-        clave = self._clave_bloqueo(nombre, id_grupo)
+        if not nombre:
+            raise ValueError("El nombre no puede estar vacío")
+        clave = self._clave_bloqueo(nombre)
 
         async with self._bloqueo_global:
             if clave not in self._bloqueos:
@@ -27,10 +35,10 @@ class ServicioSesion:
         async with bloqueo:
             await self.limpiar_sesiones_expiradas()
 
-            sesion_existente = base_datos.obtener_sesion_por_nombre_y_grupo(nombre, id_grupo)
+            sesion_existente = base_datos.obtener_sesion_por_nombre(nombre)
             if sesion_existente:
                 raise ValueError(
-                    f"El nombre '{nombre}' ya está en uso en el grupo '{id_grupo}'"
+                    f"El nombre '{nombre}' ya está en uso"
                 )
 
             id_sesion = generar_id_sesion()
@@ -40,7 +48,7 @@ class ServicioSesion:
             exito = base_datos.crear_sesion(id_sesion, nombre, id_grupo, fecha_expiracion)
             if not exito:
                 raise ValueError(
-                    f"El nombre '{nombre}' ya está en uso en el grupo '{id_grupo}'"
+                    f"El nombre '{nombre}' ya está en uso"
                 )
 
             sesion = {

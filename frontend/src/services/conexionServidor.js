@@ -110,6 +110,8 @@ class ServicioConexion {
   _procesarMensajeEntrante(datos) {
     if (datos.type === 'notification' && this.callbacks.onNotificacion) {
       this.callbacks.onNotificacion(datos);
+    } else if (datos.type === 'presence' && this.callbacks.onPresencia) {
+      this.callbacks.onPresencia(datos);
     } else if (datos.type === 'ack' && this.callbacks.onAck) {
       this.callbacks.onAck(datos);
     } else if (datos.type === 'error' && this.callbacks.onError) {

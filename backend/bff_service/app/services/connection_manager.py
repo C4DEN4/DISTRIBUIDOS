@@ -92,4 +92,17 @@ class GestorConexiones:
             nombres = {self._nombres_sesion.get(id_sesion) for id_sesion in sesiones_grupo}
         return sorted({nombre for nombre in nombres if nombre})
 
+    async def difundir_presencia(self, id_grupo: str):
+        """Notifica a todo el grupo la lista actualizada de miembros conectados."""
+        nombres = await self.obtener_nombres_grupo(id_grupo)
+        mensaje = {
+            "type": "presence",
+            "data": {
+                "names": nombres,
+                "total": len(nombres),
+            },
+        }
+        await self.broadcast_a_grupo(id_grupo, mensaje)
+        return nombres
+
 gestor_conexiones = GestorConexiones()

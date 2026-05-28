@@ -39,6 +39,7 @@ async def endpoint_websocket(
     await websocket.accept()
     await gestor_conexiones.conectar(id_sesion, id_grupo, nombre, websocket)
     registrador.info(f"WebSocket conectado al BFF: id_sesion={id_sesion}, id_grupo={id_grupo}, nombre={nombre}")
+    await gestor_conexiones.difundir_presencia(id_grupo)
 
     try:
         while True:
@@ -51,6 +52,7 @@ async def endpoint_websocket(
         registrador.error(f"Error de WebSocket para id_sesion={id_sesion}: {str(e)}")
     finally:
         await gestor_conexiones.desconectar(id_sesion)
+        await gestor_conexiones.difundir_presencia(id_grupo)
         registrador.info(f"WebSocket limpiado en el BFF: id_sesion={id_sesion}")
 
 async def manejar_mensaje_websocket(

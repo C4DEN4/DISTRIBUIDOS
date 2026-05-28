@@ -86,7 +86,7 @@ const PantallaAutenticacion = ({ navigation }) => {
       console.error('Error al ingresar:', error);
 
       if (error.message.includes('ya existe') || error.message.includes('duplicado') || error.message.includes('en uso')) {
-        setError('Este nombre ya está en uso en este grupo. Por favor, elige otro nombre.');
+        setError('Este nombre ya está en uso. Por favor, elige otro nombre.');
       } else if (error.message.includes('Servicio no disponible')) {
         setError('El servidor no está disponible. Intenta nuevamente más tarde.');
       } else {
